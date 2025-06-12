@@ -12,9 +12,9 @@ TextStyle blueTS = TextStyle(color: blueColor);
 TextStyle greyTS = TextStyle(color: greyColor);
 TextStyle darkGreyTS = TextStyle(color: darkGreyColor);
 
-FontWeight lightFontWeight = FontWeight.w300;
-FontWeight regularFontWeight = FontWeight.w400;
-FontWeight mediumFontWeight = FontWeight.w500;
-FontWeight semiBoldFontWeight = FontWeight.w600;
-FontWeight boldFontWeight = FontWeight.w700;
-FontWeight extraBoldFontWeight = FontWeight.w800;
+FontWeight light = FontWeight.w300;
+FontWeight regular = FontWeight.w400;
+FontWeight medium = FontWeight.w500;
+FontWeight semiBold = FontWeight.w600;
+FontWeight bold = FontWeight.w700;
+FontWeight extraBold = FontWeight.w800;
