@@ -6,11 +6,11 @@ Color blackColor = const Color(0xFF212A38);
 Color greyColor = const Color(0xFF8A8F99);
 Color darkGreyColor = const Color(0xFF9dA3Af);
 
-TextStyle blackTextStyle = TextStyle(color: blackColor);
-TextStyle whiteTextStyle = TextStyle(color: whiteColor);
-TextStyle blueTextStyle = TextStyle(color: blueColor);
-TextStyle greyTextStyle = TextStyle(color: greyColor);
-TextStyle darkGreyTextStyle = TextStyle(color: darkGreyColor);
+TextStyle blackTS = TextStyle(color: blackColor);
+TextStyle whiteTS = TextStyle(color: whiteColor);
+TextStyle blueTS = TextStyle(color: blueColor);
+TextStyle greyTS = TextStyle(color: greyColor);
+TextStyle darkGreyTS = TextStyle(color: darkGreyColor);
 
 FontWeight lightFontWeight = FontWeight.w300;
 FontWeight regularFontWeight = FontWeight.w400;
