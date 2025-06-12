@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:speech_to_speech_evenlabs/pages/main/home_page.dart';
 
-void main() {
+Future<void> main() async {
+  await dotenv.load(fileName: ".env");
   runApp(ProviderScope(child: const MyApp()));
 }
 
@@ -13,16 +16,7 @@ class MyApp extends ConsumerWidget {
     return MaterialApp(
       title: 'Ajheryuk App',
       debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        body: SafeArea(
-          child: Center(
-            child: Text(
-              'Selamat Datang di Ajheryuk App',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ),
-        ),
-      ),
+      home: HomePage(),
     );
   }
 }
