@@ -23,6 +23,31 @@ class DetailTrainPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
+      floatingActionButton: Container(
+        width: double.infinity,
+        margin: EdgeInsets.only(
+          bottom: 16,
+          left: MediaQuery.of(context).size.width * 0.1,
+        ),
+        child: FloatingActionButton(
+          onPressed: () async {
+            // await toggleCreate();
+          },
+          backgroundColor: blueColor,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(Icons.mic_none_rounded, color: whiteColor),
+              SizedBox(width: 4),
+              Text(
+                'Mulai Sesi Baru',
+                style: whiteTS.copyWith(fontWeight: semiBold),
+              ),
+            ],
+          ),
+        ),
+      ),
       body: Container(
         width: double.infinity,
         height: double.infinity,
