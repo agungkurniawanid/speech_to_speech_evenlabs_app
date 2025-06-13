@@ -105,7 +105,7 @@ class HomePage extends ConsumerWidget {
 
   Widget heroSection({required String name}) {
     return Container(
-      color: greyBgColor,
+      color: lightBlueColor,
       width: double.infinity,
       margin: EdgeInsets.only(top: 8),
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
