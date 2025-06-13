@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_speech_evenlabs/pages/navigation/bottom_bar.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 Future main() async {
@@ -19,7 +20,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Voice Gemini TTS Demo',
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: MyHomePage(),
+      home: BottomBar(),
     );
   }
 }
