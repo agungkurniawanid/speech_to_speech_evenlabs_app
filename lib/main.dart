@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:speech_to_speech_evenlabs/pages/main/home_page.dart';
+import 'package:speech_to_speech_evenlabs/pages/speech/speech_page.dart';
 
 Future<void> main() async {
   await dotenv.load(fileName: ".env");
@@ -14,9 +14,9 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
-      title: 'Ajheryuk App',
+      title: 'Convertation AI',
       debugShowCheckedModeBanner: false,
-      home: HomePage(),
+      home: SpeechPage(),
     );
   }
 }
