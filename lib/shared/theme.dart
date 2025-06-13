@@ -8,6 +8,10 @@ Color greyColor = const Color(0xFF8A8F99);
 Color greyBgColor = const Color(0xFFF9FAFB);
 Color darkGreyColor = const Color(0xFF9dA3Af);
 Color lightGreyColor = const Color(0xFFEEEff2);
+Color greenColor = const Color(0xFF51B18A);
+Color redColor = const Color(0xFFf03838);
+Color lightRedColor = const Color(0xFFFFE5E5);
+Color lightGreenColor = const Color(0xFFD5FAE5);
 
 TextStyle blackTS = TextStyle(color: blackColor);
 TextStyle whiteTS = TextStyle(color: whiteColor);

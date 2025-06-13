@@ -7,20 +7,47 @@ class DetailTrainPage extends ConsumerWidget {
   DetailTrainPage({super.key});
   final List<Map<String, dynamic>> recentSessions = [
     {
-      'title': 'Wawancara Software Engineer',
-      'subtitle': 'Kemarin • 15 menit',
-      'icon': Icons.mic_none_sharp,
+      'title': 'Wawancara Product Manager',
+      'status': true,
+      'session': '15 menit',
+      'lastDate': '2 hari lalu',
     },
     {
-      'title': 'Presenstasi Kepemimpinan',
-      'subtitle': '2 hari lalu • 20 menit',
-      'icon': Icons.speaker_notes_outlined,
+      'title': 'Conflict Resolution',
+      'status': false,
+      'session': '10 menit',
+      'lastDate': 'kemarin',
     },
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
+      floatingActionButton: Container(
+        width: double.infinity,
+        margin: EdgeInsets.only(
+          bottom: 16,
+          left: MediaQuery.of(context).size.width * 0.1,
+        ),
+        child: FloatingActionButton(
+          onPressed: () async {
+            // await toggleCreate();
+          },
+          backgroundColor: blueColor,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(Icons.mic_none_rounded, color: whiteColor),
+              SizedBox(width: 4),
+              Text(
+                'Mulai Sesi Baru',
+                style: whiteTS.copyWith(fontWeight: semiBold),
+              ),
+            ],
+          ),
+        ),
+      ),
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -57,10 +84,10 @@ class DetailTrainPage extends ConsumerWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: blueColor,
-                    // image: DecorationImage(
-                    //   image: AssetImage('assets/images/avatars/avatar_1.png'),
-                    //   fit: BoxFit.cover,
-                    // ),
+                    image: DecorationImage(
+                      image: AssetImage('assets/images/avatars/avatar_1.png'),
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
                 SizedBox(width: 8),
@@ -251,9 +278,10 @@ class DetailTrainPage extends ConsumerWidget {
               padding: EdgeInsets.only(bottom: 16),
               child: cardChoice(
                 title: data[index]['title'],
-                subtitle: data[index]['subtitle'],
+                session: data[index]['session'],
+                status: data[index]['status'],
                 context: context,
-                icon: data[index]['icon'],
+                lastDate: data[index]['lastDate'],
               ),
             ),
           ),
@@ -264,9 +292,10 @@ class DetailTrainPage extends ConsumerWidget {
 
   Widget cardChoice({
     required String title,
-    required String subtitle,
+    required String session,
+    required bool status,
+    required String lastDate,
     required BuildContext context,
-    required IconData icon,
   }) {
     return InkWell(
       borderRadius: BorderRadius.circular(10),
@@ -285,11 +314,12 @@ class DetailTrainPage extends ConsumerWidget {
           border: BoxBorder.all(color: lightGreyColor, width: 1.5),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Container(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.6,
+                maxWidth: MediaQuery.of(context).size.width * 0.65,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,19 +334,44 @@ class DetailTrainPage extends ConsumerWidget {
                       fontSize: 16,
                     ),
                   ),
-                  Text(
-                    '$subtitle',
-                    softWrap: true,
-                    style: GoogleFonts.roboto(
-                      color: greyColor,
-                      fontWeight: regular,
-                      fontSize: 14,
-                    ),
+                  SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          color: status == true
+                              ? lightGreenColor
+                              : lightRedColor,
+                        ),
+                        child: Text(
+                          status == true ? 'Selesai' : 'Belum Selesai',
+                          style: GoogleFonts.roboto(
+                            color: status == true ? greenColor : redColor,
+                            fontWeight: semiBold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        session,
+                        style: GoogleFonts.roboto(
+                          color: greyColor,
+                          fontWeight: regular,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            Icon(Icons.play_arrow_rounded, color: blueColor, size: 32),
+            Text(lastDate, style: GoogleFonts.roboto(color: greyColor)),
           ],
         ),
       ),

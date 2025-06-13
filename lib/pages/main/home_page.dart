@@ -90,10 +90,10 @@ class HomePage extends ConsumerWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: blueColor,
-                  // image: DecorationImage(
-                  //   image: AssetImage('assets/images/avatars/avatar_1.png'),
-                  //   fit: BoxFit.cover,
-                  // ),
+                  image: DecorationImage(
+                    image: AssetImage('assets/images/avatars/avatar_1.png'),
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
             ],
@@ -105,7 +105,7 @@ class HomePage extends ConsumerWidget {
 
   Widget heroSection({required String name}) {
     return Container(
-      color: greyBgColor,
+      color: lightBlueColor,
       width: double.infinity,
       margin: EdgeInsets.only(top: 8),
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -204,7 +204,7 @@ class HomePage extends ConsumerWidget {
           children: [
             Container(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.6,
+                maxWidth: MediaQuery.of(context).size.width * 0.65,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
