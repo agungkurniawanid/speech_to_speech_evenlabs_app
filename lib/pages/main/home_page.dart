@@ -204,7 +204,7 @@ class HomePage extends ConsumerWidget {
           children: [
             Container(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.6,
+                maxWidth: MediaQuery.of(context).size.width * 0.65,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
