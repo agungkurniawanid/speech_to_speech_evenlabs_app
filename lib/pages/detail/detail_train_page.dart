@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:speech_to_speech_evenlabs/pages/speech/speech_page.dart';
 import 'package:speech_to_speech_evenlabs/shared/theme.dart';
 
 class DetailTrainPage extends ConsumerWidget {
@@ -32,6 +33,10 @@ class DetailTrainPage extends ConsumerWidget {
         child: FloatingActionButton(
           onPressed: () async {
             // await toggleCreate();
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => SpeechPage()),
+            );
           },
           backgroundColor: blueColor,
           child: Row(
@@ -300,15 +305,19 @@ class DetailTrainPage extends ConsumerWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Fitur session ready.'),
-            duration: Duration(seconds: 2),
-          ),
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(
+        //     content: Text('Fitur session ready.'),
+        //     duration: Duration(seconds: 2),
+        //   ),
+        // );
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => SpeechPage()),
         );
       },
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
           border: BoxBorder.all(color: lightGreyColor, width: 1.5),
@@ -319,7 +328,7 @@ class DetailTrainPage extends ConsumerWidget {
           children: [
             Container(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.65,
+                maxWidth: MediaQuery.of(context).size.width * 0.6,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

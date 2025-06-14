@@ -1,10 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:speech_to_speech_evenlabs/shared/theme.dart';
+import 'package:http/http.dart' as http;
+import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_speech_evenlabs/services/elevenLabsSource.dart';
+import 'package:speech_to_speech_evenlabs/shared/theme.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 final recorderProvider = StateNotifierProvider<RecorderNotifier, RecorderState>(
   (ref) => RecorderNotifier(),
@@ -106,15 +112,340 @@ class _SpeechPageState extends ConsumerState<SpeechPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(recorderProvider.notifier).init();
+    // WidgetsBinding.instance.addPostFrameCallback((_) {
+    //   ref.read(recorderProvider.notifier).init();
+    // });
+    _speech = stt.SpeechToText();
+    _initSpeech();
+  }
+
+  Timer? _elapsedTimeTimer;
+  int _elapsedSeconds = 0;
+  Timer? _typingTimer;
+  final ScrollController _scrollController = ScrollController();
+
+  final TextEditingController _requestController = TextEditingController();
+  final TextEditingController _responseController = TextEditingController();
+  final AudioPlayer _player = AudioPlayer();
+
+  // STT Variables
+  late stt.SpeechToText _speech;
+  bool _isListening = false;
+  String _sttResult = '';
+  bool _speechAvailable = false;
+  bool _isLoading = false;
+  bool _started = false;
+  bool _isMicrophoneActive = true;
+  bool _isLoudspeakerActive = true;
+  void _toggleMicrophone() {
+    if (_isMicrophoneActive) {
+      ref.read(recorderProvider.notifier).stopRecording();
+      setState(() {
+        _isMicrophoneActive = false;
+      });
+    } else {
+      ref.read(recorderProvider.notifier).startRecording();
+      setState(() {
+        _isMicrophoneActive = true;
+      });
+    }
+  }
+
+  void _toggleLoudspeaker() {
+    if (_isLoudspeakerActive) {
+      _player.stop();
+      setState(() {
+        _isLoudspeakerActive = false;
+      });
+    } else {
+      if (_responseController.text.isNotEmpty) {
+        playTextToSpeech(_responseController.text);
+        setState(() {
+          _isLoudspeakerActive = true;
+        });
+      }
+    }
+  }
+
+  void _simulateTyping(String text, TextEditingController controller) {
+    controller.clear();
+    int charIndex = 0;
+
+    _typingTimer?.cancel();
+
+    _typingTimer = Timer.periodic(Duration(milliseconds: 100), (timer) {
+      if (charIndex < text.length) {
+        controller.text += text[charIndex];
+        charIndex++;
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        }
+      } else {
+        timer.cancel();
+      }
     });
+  }
+
+  Future<void> _stopListening() async {
+    if (_isListening) {
+      await _speech.stop();
+      setState(() {
+        _isListening = false;
+        _sttResult = '';
+        _requestController.clear();
+        _responseController.clear();
+        _elapsedSeconds = 0;
+      });
+    }
+  }
+
+  Future<void> _initSpeech() async {
+    try {
+      bool available = await _speech.initialize(
+        onStatus: (status) => print('STT Status: $status'),
+        onError: (error) => print('STT Error: $error'),
+      );
+      setState(() {
+        _speechAvailable = available;
+        if (!available) {
+          _requestController.text = "Periksa izin microphone dan coba lagi";
+        }
+      });
+    } catch (e) {
+      print('Error inisialisasi STT: $e');
+      setState(() => _speechAvailable = false);
+    }
+  }
+
+  Future<void> _startListeningManually() async {
+    var status = await Permission.microphone.status;
+    if (!status.isGranted) {
+      status = await Permission.microphone.request();
+      if (!status.isGranted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Izin microphone diperlukan')),
+        );
+        return;
+      }
+    }
+
+    if (!_speechAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Speech recognition belum siap')),
+      );
+      return;
+    }
+
+    setState(() => _started = true);
+    startListeningLoop();
+  }
+
+  void startListeningLoop() async {
+    if (!_speechAvailable || _isListening) return;
+
+    setState(() => _isListening = true);
+    await _speech.listen(
+      onResult: (result) async {
+        if (result.finalResult && result.recognizedWords.isNotEmpty) {
+          String recognizedText = result.recognizedWords;
+          setState(() {
+            _isListening = false;
+            _sttResult = recognizedText;
+            _requestController.text = recognizedText;
+          });
+
+          await _speech.stop();
+          await processSpeechToGeminiAndTTS(recognizedText);
+
+          await Future.delayed(Duration(milliseconds: 400));
+          startListeningLoop();
+        }
+      },
+      localeId: 'id_ID',
+      listenMode: stt.ListenMode.dictation,
+      cancelOnError: true,
+      partialResults: true,
+    );
+  }
+
+  Future<void> processSpeechToGeminiAndTTS(String userText) async {
+    setState(() {
+      _isLoading = true;
+      _responseController.text = '';
+    });
+    try {
+      String geminiResponse = await fetchGeminiResponse(userText);
+      _simulateTyping(geminiResponse, _responseController);
+      await playTextToSpeech(geminiResponse);
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+    } finally {
+      await Future.delayed(const Duration(milliseconds: 500));
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<String> fetchGeminiResponse(String prompt) async {
+    final apiKey = dotenv.env['GEMINI_API_KEY'];
+    if (apiKey == null || apiKey.isEmpty) {
+      throw Exception('GEMINI_API_KEY tidak ditemukan di .env');
+    }
+    final url =
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey';
+
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        "contents": [
+          {
+            "parts": [
+              {"text": prompt},
+            ],
+          },
+        ],
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      try {
+        return data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+      } catch (e) {
+        throw Exception('Format jawaban Gemini tidak cocok: ${response.body}');
+      }
+    } else {
+      throw Exception("Gemini API error: ${response.body}");
+    }
+  }
+
+  Future<void> playTextToSpeech(String text) async {
+    if (text.isEmpty) return;
+
+    final apiKey = dotenv.env['EL_API_KEY'];
+    if (apiKey == null || apiKey.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('API Key ElevenLabs tidak ditemukan')),
+      );
+      return;
+    }
+    bool success = false;
+    int retryCount = 0;
+    const int maxRetries = 5;
+    const Duration retryDelay = Duration(seconds: 2);
+
+    // while (!success && retryCount < maxRetries) {
+    try {
+      await _player.stop();
+      final response = await http
+          .post(
+            Uri.parse(
+              'https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM',
+            ),
+            headers: {
+              'accept': 'audio/mpeg',
+              'xi-api-key': apiKey,
+              'Content-Type': 'application/json',
+            },
+            body: json.encode({
+              "text": text,
+              "model_id": "eleven_monolingual_v1",
+              "voice_settings": {"stability": .15, "similarity_boost": .75},
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+        await _player.setAudioSource(ElevenLabsSource(response.bodyBytes));
+        await _player.play();
+        success = true;
+      }
+      //  else if (response.statusCode == 401) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     const SnackBar(
+      //       content: Text('API sedang sibuk, mohon tunggu sebentar.'),
+      //     ),
+      //   );
+      //   retryCount++;
+      //   await Future.delayed(retryDelay);
+      // }
+      else {
+        throw Exception("Gagal mendapatkan audio: ${response.statusCode}");
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memutar suara, silakan coba lagi')),
+      );
+
+      debugPrint('TTS error: $e');
+      setState(() {
+        _isLoading = false;
+        _isListening = false;
+        _started = false;
+        _sttResult = '';
+        _requestController.clear();
+        _responseController.clear();
+      });
+
+      try {
+        await _speech.stop();
+        await _player.stop();
+      } catch (_) {}
+    }
+    // }
+  }
+
+  void _startTimer() {
+    _elapsedSeconds = 0;
+    _elapsedTimeTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _elapsedSeconds++;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _elapsedTimeTimer?.cancel();
+    _typingTimer?.cancel();
+    super.dispose();
+  }
+
+  void _stopTimer() {
+    _elapsedTimeTimer?.cancel();
+    _elapsedSeconds = 0;
+  }
+
+  void _toggleActive() {
+    setState(() {
+      _started = !_started;
+    });
+
+    if (_started) {
+      // ref.read(recorderProvider.notifier).startRecording();
+      _startListeningManually();
+      _startTimer();
+    } else {
+      // ref.read(recorderProvider.notifier).stopRecording();
+      _stopListening();
+      _stopTimer();
+    }
+  }
+
+  String get elapsedTime {
+    final hours = (_elapsedSeconds ~/ 3600).toString().padLeft(2, '0');
+    final minutes = ((_elapsedSeconds % 3600) ~/ 60).toString().padLeft(2, '0');
+    final seconds = (_elapsedSeconds % 60).toString().padLeft(2, '0');
+    return '$hours:$minutes:$seconds';
   }
 
   @override
   Widget build(BuildContext context) {
     final recorderState = ref.watch(recorderProvider);
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -162,6 +493,7 @@ class _SpeechPageState extends ConsumerState<SpeechPage> {
             const SizedBox(height: 24),
             Expanded(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   const SizedBox(height: 24),
                   Column(
@@ -189,7 +521,7 @@ class _SpeechPageState extends ConsumerState<SpeechPage> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '00:05:23',
+                        '${elapsedTime}',
                         style: GoogleFonts.roboto(
                           fontSize: 14,
                           color: Colors.blue,
@@ -208,140 +540,206 @@ class _SpeechPageState extends ConsumerState<SpeechPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Center(
-                      child: VoiceWaveVisualizer(
-                        soundLevel: recorderState.soundLevel,
-                        isRecording: recorderState.isRecording,
-                      ),
+                      child:
+                          // VoiceWaveVisualizer(
+                          //   soundLevel: recorderState.soundLevel,
+                          //   isRecording: recorderState.isRecording,
+                          // ),
+                          //  if (_started)
+                          _started
+                          ? AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 400),
+                              transitionBuilder: (child, animation) {
+                                return ScaleTransition(
+                                  scale: animation,
+                                  child: child,
+                                );
+                              },
+                              child: _isLoading
+                                  ?
+                                    //  const Text(
+                                    //     'Jawab...',
+                                    //     key: ValueKey('listening'),
+                                    //     style: TextStyle(color: Colors.red),
+                                    //     textAlign: TextAlign.center,
+                                    //   )
+                                    Image.asset(
+                                      'assets/gif/loads/voice_process.gif',
+                                      key: const ValueKey('gif'),
+                                      height: 80,
+                                    )
+                                  : _isListening
+                                  ? const Text(
+                                      'Mendengarkan...',
+                                      key: ValueKey('listening'),
+                                      style: TextStyle(
+                                        color: Color(0xFF355DEB),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    )
+                                  : const SizedBox(key: ValueKey('empty')),
+                            )
+                          : SizedBox(),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 16),
                   // Bagian transkrip tetap sama
+                  _started
+                      ? Expanded(
+                          child: Container(
+                            // color: redColor,
+                            // height: MediaQuery.of(context).size.height / 3,
+                            padding: EdgeInsets.symmetric(horizontal: 32),
+                            child: SingleChildScrollView(
+                              controller: _scrollController,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'Transkrip Langsung',
+                                        style: GoogleFonts.roboto(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      TextButton(
+                                        onPressed: () {},
+                                        child: Text(
+                                          'Tampilan Lengkap',
+                                          style: GoogleFonts.roboto(
+                                            color: blueColor,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  if (_requestController.text.isNotEmpty)
+                                    Row(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 20,
+                                          backgroundColor: Colors.grey.shade300,
+                                          child: Icon(
+                                            Icons.person,
+                                            color: blackColor,
+                                            size: 18,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            _requestController.text,
+                                            style: GoogleFonts.roboto(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  const SizedBox(height: 8),
+                                  if (_responseController.text.isNotEmpty)
+                                    Row(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 20,
+                                          backgroundColor: Colors.blue.shade50,
+                                          child: Icon(
+                                            Icons.android,
+                                            color: blueColor,
+                                            size: 18,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            _responseController.text,
+                                            style: GoogleFonts.roboto(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          height: MediaQuery.of(context).size.height * 0.1,
+                          margin: EdgeInsets.only(
+                            bottom: MediaQuery.of(context).size.height * 0.025,
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Tekan tombol dibawah ini untuk memulai',
+                            ),
+                          ),
+                        ),
+                  // const Spacer(),
+                  if (!_started)
+                    SizedBox(height: MediaQuery.of(context).size.height * 0.1),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Transkrip Langsung',
-                              style: GoogleFonts.roboto(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const Spacer(),
-                            TextButton(
-                              onPressed: () {},
-                              child: Text(
-                                'Tampilan Lengkap',
-                                style: GoogleFonts.roboto(
-                                  color: blueColor,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: Colors.blue.shade50,
-                              child: Icon(
-                                Icons.android,
-                                color: blueColor,
-                                size: 18,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Ceritakan tentang proyek menantang yang pernah kamu kerjakan',
-                                style: GoogleFonts.roboto(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: Colors.grey.shade300,
-                              child: Icon(
-                                Icons.person,
-                                color: blackColor,
-                                size: 18,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                recorderState.isRecording
-                                    ? 'Mendengarkan...'
-                                    : 'Di posisi sebelumnya, saya memimpin tim...',
-                                style: GoogleFonts.roboto(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 48,
-                      vertical: 16,
+                    padding: const EdgeInsets.only(
+                      left: 48,
+                      right: 48,
+
+                      bottom: 16,
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        CircleAvatar(
-                          radius: 34,
-                          backgroundColor: Colors.grey.shade200,
-                          child: Icon(
-                            recorderState.isRecording
-                                ? Icons.mic
-                                : Icons.mic_off,
-                            color: blueColor,
+                        GestureDetector(
+                          onTap: _toggleMicrophone,
+                          child: CircleAvatar(
+                            radius: 34,
+                            backgroundColor: Colors.grey.shade200,
+                            child: Icon(
+                              _isMicrophoneActive ? Icons.mic : Icons.mic_off,
+                              color: darkGreyColor,
+                            ),
                           ),
                         ),
                         GestureDetector(
                           onTap: () {
-                            ref
-                                .read(recorderProvider.notifier)
-                                .toggleRecording();
+                            // ref
+                            //     .read(recorderProvider.notifier)
+                            //     .toggleRecording();
+                            _toggleActive();
                           },
                           child: CircleAvatar(
                             radius: 50,
-                            backgroundColor: recorderState.isRecording
-                                ? Colors.redAccent
-                                : Colors.grey.shade200,
+                            backgroundColor: _started
+                                ? lightRedColor
+                                : lightBlueColor,
                             child: Icon(
-                              recorderState.isRecording
-                                  ? Icons.mic
-                                  : Icons.phone_disabled,
-                              color: recorderState.isRecording
-                                  ? Colors.white
-                                  : Colors.black,
+                              _started ? Icons.call_end : Icons.call,
+                              color: _started ? redColor : blueColor,
                               size: 30,
                             ),
                           ),
                         ),
-                        CircleAvatar(
-                          radius: 34,
-                          backgroundColor: Colors.grey.shade200,
-                          child: Icon(Icons.volume_up, color: blueColor),
+                        GestureDetector(
+                          onTap: _toggleLoudspeaker,
+                          child: CircleAvatar(
+                            radius: 34,
+                            backgroundColor: Colors.grey.shade200,
+                            child: Icon(
+                              _isLoudspeakerActive
+                                  ? Icons.volume_up
+                                  : Icons.volume_off,
+                              color: darkGreyColor,
+                            ),
+                          ),
                         ),
                       ],
                     ),

@@ -1,6 +1,6 @@
-import 'package:awesome_bottom_bar/widgets/inspired/inspired.dart';
 import 'package:flutter/material.dart';
 import 'package:awesome_bottom_bar/awesome_bottom_bar.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:speech_to_speech_evenlabs/pages/main/home_page.dart';
 import 'package:speech_to_speech_evenlabs/pages/main/progress_page.dart';
 import 'package:speech_to_speech_evenlabs/pages/main/reference_page.dart';
@@ -33,14 +33,14 @@ const List<String> titles = [
   'Pengaturan',
 ];
 
-class BottomBar extends StatefulWidget {
+class BottomBar extends ConsumerStatefulWidget {
   const BottomBar({Key? key}) : super(key: key);
 
   @override
   _BottomBarState createState() => _BottomBarState();
 }
 
-class _BottomBarState extends State<BottomBar> {
+class _BottomBarState extends ConsumerState<BottomBar> {
   late PageController _pageController;
   int _selectedIndex = 0;
 
@@ -71,6 +71,7 @@ class _BottomBarState extends State<BottomBar> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: whiteColor,
       body: PageView(
         controller: _pageController,
         onPageChanged: (index) {
