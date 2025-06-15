@@ -296,6 +296,13 @@ class _SpeechPageState extends ConsumerState<SpeechPage> {
     final url =
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey';
 
+    final finalPrompt =
+        '''
+Your name is Rizky Aditya. You are a HR in Tech company named Astra Internasional. Your task is to interview the user which is a fresh graduate that want to apply a job position in your company.
+
+$prompt
+''';
+
     final response = await http
         .post(
           Uri.parse(url),
@@ -304,7 +311,7 @@ class _SpeechPageState extends ConsumerState<SpeechPage> {
             "contents": [
               {
                 "parts": [
-                  {"text": prompt},
+                  {"text": finalPrompt},
                 ],
               },
             ],
