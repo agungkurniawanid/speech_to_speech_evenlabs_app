@@ -257,7 +257,7 @@ class _SpeechPageState extends ConsumerState<SpeechPage> {
           await _speech.stop();
           await processSpeechToGeminiAndTTS(recognizedText);
 
-          await Future.delayed(Duration(milliseconds: 400));
+          await Future.delayed(Duration(milliseconds: 50));
           startListeningLoop();
         }
       },
@@ -275,8 +275,9 @@ class _SpeechPageState extends ConsumerState<SpeechPage> {
     });
     try {
       String geminiResponse = await fetchGeminiResponse(userText);
-      _simulateTyping(geminiResponse, _responseController);
-      await playTextToSpeech(geminiResponse);
+      String cleanedResponse = geminiResponse.replaceAll('*', '');
+      _simulateTyping(cleanedResponse, _responseController);
+      await playTextToSpeech(cleanedResponse);
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -295,19 +296,21 @@ class _SpeechPageState extends ConsumerState<SpeechPage> {
     final url =
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey';
 
-    final response = await http.post(
-      Uri.parse(url),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        "contents": [
-          {
-            "parts": [
-              {"text": prompt},
+    final response = await http
+        .post(
+          Uri.parse(url),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            "contents": [
+              {
+                "parts": [
+                  {"text": prompt},
+                ],
+              },
             ],
-          },
-        ],
-      }),
-    );
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -331,14 +334,14 @@ class _SpeechPageState extends ConsumerState<SpeechPage> {
       );
       return;
     }
-    bool success = false;
-    int retryCount = 0;
-    const int maxRetries = 5;
-    const Duration retryDelay = Duration(seconds: 2);
 
-    // while (!success && retryCount < maxRetries) {
     try {
-      await _player.stop();
+      // Stop player jika sedang memainkan audio
+      if (_player.playing) {
+        await _player.stop();
+      }
+
+      // Kirim request ke ElevenLabs
       final response = await http
           .post(
             Uri.parse(
@@ -360,26 +363,29 @@ class _SpeechPageState extends ConsumerState<SpeechPage> {
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
         await _player.setAudioSource(ElevenLabsSource(response.bodyBytes));
         await _player.play();
-        success = true;
-      }
-      //  else if (response.statusCode == 401) {
-      //   ScaffoldMessenger.of(context).showSnackBar(
-      //     const SnackBar(
-      //       content: Text('API sedang sibuk, mohon tunggu sebentar.'),
-      //     ),
-      //   );
-      //   retryCount++;
-      //   await Future.delayed(retryDelay);
-      // }
-      else {
-        throw Exception("Gagal mendapatkan audio: ${response.statusCode}");
+
+        // Tunggu hingga selesai diputar
+        await _player.processingStateStream.firstWhere(
+          (state) => state == ProcessingState.completed,
+          orElse: () => ProcessingState.completed,
+        );
+      } else {
+        try {
+          final body = jsonDecode(response.body);
+          final detail = body['detail'];
+          throw Exception("(${detail['status']}) ${detail['message']}");
+        } catch (_) {
+          throw Exception("Gagal mendapatkan audio: ${response.body}");
+        }
       }
     } catch (e) {
+      debugPrint('TTS error: $e');
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memutar suara, silakan coba lagi')),
+        SnackBar(content: Text('Gagal memutar suara: ${e.toString()}')),
       );
 
-      debugPrint('TTS error: $e');
+      // Reset UI state (jika perlu)
       setState(() {
         _isLoading = false;
         _isListening = false;
@@ -391,10 +397,9 @@ class _SpeechPageState extends ConsumerState<SpeechPage> {
 
       try {
         await _speech.stop();
-        await _player.stop();
+        if (_player.playing) await _player.stop();
       } catch (_) {}
     }
-    // }
   }
 
   void _startTimer() {
